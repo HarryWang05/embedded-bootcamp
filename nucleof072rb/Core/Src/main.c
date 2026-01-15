@@ -48,8 +48,8 @@
 /* USER CODE BEGIN PV */
 uint8_t txBuf[3];      // Buffer for data sent TO the ADC
 uint8_t rxBuf[3];      // Buffer for data received FROM the ADC
-uint16_t adc_val = 0;  // 10-bit result (0-1023)
-uint16_t pulse_val = 0; // PWM pulse width (3000-6000)
+uint16_t adcVal = 0;  // 10-bit result (0-1023)
+uint16_t pulseVal = 0; // PWM pulse width (3000-6000)
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -100,8 +100,7 @@ int main(void)
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  while (1)
-  {
+  while (1) {
 	    txBuf[0] = 0x01;
 	    txBuf[1] = 0x80;
 	    txBuf[2] = 0x00;
@@ -112,12 +111,12 @@ int main(void)
 
 	    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_SET);
 
-	    // Byte 1: Ignored. Byte 2: bits 0-1 are B9-B8. Byte 3: bits 0-7 are B7-B0.
-	    adc_val = ((rxBuf[1] & 0x03) << 8) | rxBuf[2];
+	    // Byte 1: Ignored. Byte 2: bits 0-1 are B9-8. Byte 3: bits 0-7 are B7-0.
+	    adcVal = ((rxBuf[1] & 0x03) << 8) | rxBuf[2];
 
-	    pulse_val = 3000 + (adc_val * 3000 / 1023);
+	    pulseVal = 3000 + (adcVal * 3000 / 1023);
 
-	    __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, pulse_val);
+	    __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, pulseVal);
 
 	    HAL_Delay(10);
     /* USER CODE END WHILE */
