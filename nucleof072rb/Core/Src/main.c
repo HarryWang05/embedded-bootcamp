@@ -19,6 +19,8 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "spi.h"
+#include "tim.h"
 #include "usart.h"
 #include "gpio.h"
 
@@ -44,7 +46,10 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-
+uint8_t txBuf[3];      // Buffer for data sent TO the ADC
+uint8_t rxBuf[3];      // Buffer for data received FROM the ADC
+uint16_t adc_val = 0;  // 10-bit result (0-1023)
+uint16_t pulse_val = 0; // PWM pulse width (3000-6000)
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -87,14 +92,34 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_USART2_UART_Init();
+  MX_SPI1_Init();
+  MX_TIM1_Init();
   /* USER CODE BEGIN 2 */
-
+  HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+	    txBuf[0] = 0x01;
+	    txBuf[1] = 0x80;
+	    txBuf[2] = 0x00;
+
+	    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_RESET);
+
+	    HAL_SPI_TransmitReceive(&hspi1, txBuf, rxBuf, 3, 10);
+
+	    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_SET);
+
+	    // Byte 1: Ignored. Byte 2: bits 0-1 are B9-B8. Byte 3: bits 0-7 are B7-B0.
+	    adc_val = ((rxBuf[1] & 0x03) << 8) | rxBuf[2];
+
+	    pulse_val = 3000 + (adc_val * 3000 / 1023);
+
+	    __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, pulse_val);
+
+	    HAL_Delay(10);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
