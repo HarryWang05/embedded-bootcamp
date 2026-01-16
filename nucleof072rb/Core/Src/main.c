@@ -101,21 +101,24 @@ int main(void)
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1) {
+	    // Start bit is 1
 	    txBuf[0] = 0x01;
+	    // 1000 0000 in binary
+	    // Bit 7 (SGL/DIFF) = 1
+	   	// Bits 6-4 (D2, D1, D0) = 000
 	    txBuf[1] = 0x80;
 	    txBuf[2] = 0x00;
-
+	    // Set to low to enable ADC
 	    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_RESET);
-
+	    // Send dummy and receive, 3 bytes
 	    HAL_SPI_TransmitReceive(&hspi1, txBuf, rxBuf, 3, 10);
-
+	    // Set back to high to disable ADC
 	    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_SET);
-
 	    // Byte 1: Ignored. Byte 2: bits 0-1 are B9-8. Byte 3: bits 0-7 are B7-0.
 	    adcVal = ((rxBuf[1] & 0x03) << 8) | rxBuf[2];
-
+	    // Map from 0-1023 to 3000-6000
 	    pulseVal = 3000 + (adcVal * 3000 / 1023);
-
+	    // Update hardware value
 	    __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, pulseVal);
 
 	    HAL_Delay(10);
