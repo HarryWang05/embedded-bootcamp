@@ -46,10 +46,20 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-uint8_t txBuf[3];      // Buffer for data sent TO the ADC
+// txBuf
+// [1] - Start bit is 1
+// [2] - Bit 7 (SGL/DIFF) = 1
+// [3] - Bits 6-4 (D2, D1, D0) = 000
+uint8_t txBuf[3] = {0x01, 0x80, 0x00};      // Buffer for data sent TO the ADC
 uint8_t rxBuf[3];      // Buffer for data received FROM the ADC
 uint16_t adcVal = 0;  // 10-bit result (0-1023)
 uint16_t pulseVal = 0; // PWM pulse width (3000-6000)
+const uint8_t ADC_MSG_LEN = 3;
+const uint32_t SPI_TIMEOUT = 10;
+const uint16_t PULSE_MIN = 3000;
+const uint16_t PULSE_RANGE = 3000;
+const float ADC_MAX_RES = 1023.0f;
+HAL_StatusTypeDef spiStatus;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -96,32 +106,33 @@ int main(void)
   MX_TIM1_Init();
   /* USER CODE BEGIN 2 */
   HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
+  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_SET); // Set CS high initially
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1) {
-	    // Start bit is 1
-	    txBuf[0] = 0x01;
-	    // 1000 0000 in binary
-	    // Bit 7 (SGL/DIFF) = 1
-	   	// Bits 6-4 (D2, D1, D0) = 000
-	    txBuf[1] = 0x80;
-	    txBuf[2] = 0x00;
-	    // Set to low to enable ADC
-	    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_RESET);
-	    // Send dummy and receive, 3 bytes
-	    HAL_SPI_TransmitReceive(&hspi1, txBuf, rxBuf, 3, 10);
-	    // Set back to high to disable ADC
-	    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_SET);
-	    // Byte 1: Ignored. Byte 2: bits 0-1 are B9-8. Byte 3: bits 0-7 are B7-0.
-	    adcVal = ((rxBuf[1] & 0x03) << 8) | rxBuf[2];
-	    // Map from 0-1023 to 3000-6000
-	    pulseVal = 3000 + (adcVal * 3000 / 1023);
-	    // Update hardware value
-	    __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, pulseVal);
+  // Set to low to enable ADC
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_RESET);
+  // Send dummy and receive
+  spiStatus = HAL_SPI_TransmitReceive(&hspi1, txBuf, rxBuf, ADC_MSG_LEN, SPI_TIMEOUT);
+  // Set back to high to disable ADC
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_SET);
+  // Check is SPI was successful
+  if (spiStatus == HAL_OK) {
 
-	    HAL_Delay(10);
+      // Byte 1: Ignored. Byte 2: bits 0-1 are B9-8. Byte 3: bits 0-7 are B7-0.
+    adcVal = ((rxBuf[1] & 0x03) << 8) | rxBuf[2];
+
+    // Map to pulse range using floating point to avoid integer division truncation
+    pulseVal = PULSE_MIN + (uint16_t)((float)adcVal * (float)PULSE_RANGE / ADC_MAX_RES);
+
+    __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, pulseVal);
+  } else {
+    printf("SPI Error: %d\r\n", spiStatus);
+  }
+
+  HAL_Delay(10);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
